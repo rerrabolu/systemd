@@ -541,6 +541,17 @@ int trigger_main(int argc, char *argv[], void *userdata) {
         _cleanup_set_free_ Set *settle_ids = NULL;
         int r;
 
+        /* ═══════════════════════════════════════════════════════════════
+         * TEST PRINT - Add this to verify your build is running
+         * ═══════════════════════════════════════════════════════════════ */
+        fprintf(stderr, "\n");
+        fprintf(stderr, "╔════════════════════════════════════════════════╗\n");
+        fprintf(stderr, "║ HELP EVER - HURT NEVER - LOVER ALL - SERVE ALL ║\n");
+        fprintf(stderr, "╚════════════════════════════════════════════════╝\n");
+        fprintf(stderr, "\n");
+        /* ═══════════════════════════════════════════════════════════════ */
+
+
         if (running_in_chroot() > 0) {
                 log_info("Running in chroot, ignoring request.");
                 return 0;
