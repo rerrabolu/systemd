@@ -87,9 +87,16 @@ static int exec_list(
                 const char *syspath;
                 r = sd_device_get_syspath(d, &syspath);
                 if (r < 0) {
+			fprintf(stderr, "\n");
+			fprintf(stderr, "%s - Sairam: Failed To Get Syspath - %s\n", __func__, syspath);
+			fprintf(stderr, "\n");
                         log_debug_errno(r, "Failed to get syspath of enumerated devices, ignoring: %m");
                         continue;
-                }
+                } else {
+			fprintf(stderr, "\n");
+			fprintf(stderr, "%s - Sairam: Successful To Get Syspath - %s\n", __func__, syspath);
+			fprintf(stderr, "\n");
+		}
 
                 if (arg_verbose)
                         printf("%s\n", syspath);
@@ -99,6 +106,9 @@ static int exec_list(
 
                 sd_id128_t id;
                 r = sd_device_trigger_with_uuid(d, action, &id);
+		fprintf(stderr, "\n");
+		fprintf(stderr, "%s - Sairam: RetVal of Func: sd_device_trigger_with_uuid: %d\n", __func__, r);
+		fprintf(stderr, "\n");
                 if (r < 0) {
                         /* ENOENT may be returned when a device does not have /uevent or is already
                          * removed. Hence, this is logged at debug level and ignored.

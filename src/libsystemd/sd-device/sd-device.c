@@ -87,6 +87,18 @@ int device_add_property_aux(sd_device *device, const char *key, const char *valu
         assert(device);
         assert(key);
 
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Sairam: Entered Method: %s\n", __func__);
+	fprintf(stderr, "\n");
+
+	if (key) {
+		fprintf(stderr, "%s: Hash   Key: %s\n", __func__, key);
+	}
+
+	if (value) {
+		fprintf(stderr, "%s: Hash Value: %s\n", __func__, value);
+	}
+
         if (db)
                 properties = &device->properties_db;
         else
@@ -129,6 +141,10 @@ int device_add_property_aux(sd_device *device, const char *key, const char *valu
                 device->properties_generation++;
                 device->properties_buf_outdated = true;
         }
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Sairam: Leaving Method: %s\n", __func__);
+	fprintf(stderr, "\n");
 
         return 0;
 }
@@ -660,6 +676,10 @@ int device_set_devname(sd_device *device, const char *devname) {
         assert(device);
         assert(devname);
 
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Sairam: Entered Method : %s\n", __func__);
+	fprintf(stderr, "\n");
+
         r = mangle_devname(devname, &t);
         if (r < 0)
                 return r;
@@ -668,7 +688,13 @@ int device_set_devname(sd_device *device, const char *devname) {
         if (r < 0)
                 return r;
 
-        return free_and_replace(device->devname, t);
+        r = free_and_replace(device->devname, t);
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Sairam: Leaving Method : %s\n", __func__);
+	fprintf(stderr, "\n");
+
+	return r;
 }
 
 int device_set_devmode(sd_device *device, const char *_devmode) {
@@ -1166,6 +1192,11 @@ int device_set_subsystem(sd_device *device, const char *subsystem) {
 
         assert(device);
 
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Sairam: Entered Method: %s\n", __func__);
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Sairam: Determining Subsystem For: %s\n", subsystem);
+
         if (subsystem) {
                 s = strdup(subsystem);
                 if (!s)
@@ -1176,7 +1207,14 @@ int device_set_subsystem(sd_device *device, const char *subsystem) {
         if (r < 0)
                 return r;
 
+	fprintf(stderr, "Sairam: Added Subsystem : %s\n", s);
+
         device->subsystem_set = true;
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Sairam: Leaving Method: %s\n", __func__);
+	fprintf(stderr, "\n");
+
         return free_and_replace(device->subsystem, s);
 }
 
@@ -1220,6 +1258,10 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
 
         assert_return(device, -EINVAL);
 
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Sairam: Entered Method: %s\n", __func__);
+	fprintf(stderr, "\n");
+
         r = device_read_uevent_file(device);
         if (r < 0)
                 return r;
@@ -1235,7 +1277,20 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
                 if (r >= 0)
                         r = device_set_subsystem(device, subsystem);
                 /* use implicit names */
-                else if (!isempty(path_startswith(device->devpath, "/module/")))
+                else if (path_startswith(device->devpath, "/bus/pci/slots/")) {
+
+			fprintf(stderr, "\n");
+			fprintf(stderr, "Sairam: Begin Scanning SLOT directory PCI\n");
+			fprintf(stderr, "\n");
+
+			r = device_set_subsystem(device, "slots");
+
+			fprintf(stderr, "\n");
+			fprintf(stderr, "Sairam: END Scanning SLOT directory PCI\n");
+			fprintf(stderr, "Sairam: Result of Scanning SLOT directory PCI - %d\n", r);
+			fprintf(stderr, "\n");
+
+		} else if (!isempty(path_startswith(device->devpath, "/module/")))
                         r = device_set_subsystem(device, "module");
                 else if (strstr(device->devpath, "/drivers/") || endswith(device->devpath, "/drivers"))
                         r = device_set_drivers_subsystem(device);
@@ -1254,6 +1309,11 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
 
         if (ret)
                 *ret = device->subsystem;
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Sairam: Leaving Method: %s\n", __func__);
+	fprintf(stderr, "\n");
+
         return 0;
 }
 
@@ -2345,6 +2405,11 @@ _public_ int sd_device_get_trigger_uuid(sd_device *device, sd_id128_t *ret) {
         sd_id128_t id;
         int r;
 
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Sairam: Entered Method: %s\n", __func__);
+	fprintf(stderr, "\n");
+
         assert_return(device, -EINVAL);
 
         /* Retrieves the UUID attached to a uevent when triggering it from userspace via
@@ -2364,6 +2429,11 @@ _public_ int sd_device_get_trigger_uuid(sd_device *device, sd_id128_t *ret) {
 
         if (ret)
                 *ret = id;
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Sairam: Got UUID: %s - %s\n", __func__, s);
+	fprintf(stderr, "Sairam: Leaving Method: %s\n", __func__);
+	fprintf(stderr, "\n");
 
         return 0;
 }
