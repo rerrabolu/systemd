@@ -87,6 +87,11 @@ int device_add_property_aux(sd_device *device, const char *key, const char *valu
         assert(device);
         assert(key);
 
+	if (key)
+		fprintf(stderr, "%s: Hash   Key: %s\n", __func__, key);
+	if (value)
+		fprintf(stderr, "%s: Hash Value: %s\n", __func__, value);
+
         if (db)
                 properties = &device->properties_db;
         else
@@ -130,6 +135,7 @@ int device_add_property_aux(sd_device *device, const char *key, const char *valu
                 device->properties_buf_outdated = true;
         }
 
+	fprintf(stderr, "Sairam: Returning at the end of the method : %s\n", __func__);
         return 0;
 }
 
@@ -668,7 +674,10 @@ int device_set_devname(sd_device *device, const char *devname) {
         if (r < 0)
                 return r;
 
-        return free_and_replace(device->devname, t);
+        r = free_and_replace(device->devname, t);
+
+	fprintf(stderr, "Sairam: Returning at the end of the method : %s\n", __func__);
+	return r;
 }
 
 int device_set_devmode(sd_device *device, const char *_devmode) {
@@ -1166,6 +1175,7 @@ int device_set_subsystem(sd_device *device, const char *subsystem) {
 
         assert(device);
 
+	fprintf(stderr, "%s: Determining Subsystem For: %s\n", __func__, subsystem);
         if (subsystem) {
                 s = strdup(subsystem);
                 if (!s)
@@ -1175,6 +1185,8 @@ int device_set_subsystem(sd_device *device, const char *subsystem) {
         r = device_add_property_internal(device, "SUBSYSTEM", s);
         if (r < 0)
                 return r;
+
+	fprintf(stderr, "%s: Added Subsystem : %s\n", __func__, s);
 
         device->subsystem_set = true;
         return free_and_replace(device->subsystem, s);
@@ -1235,7 +1247,15 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
                 if (r >= 0)
                         r = device_set_subsystem(device, subsystem);
                 /* use implicit names */
-                else if (!isempty(path_startswith(device->devpath, "/module/")))
+                else if (path_startswith(device->devpath, "/bus/pci/slots/")) {
+
+                        fprintf(stderr, "%s: Begin Scanning SLOT directory PCI\n", __func__);
+                        r = device_set_subsystem(device, "slots");
+                        fprintf(stderr, "%s: END Scanning SLOT directory PCI\n", __func__);
+                        fprintf(stderr, "%s: Result of Scanning SLOT directory PCI - %d\n", __func__, r);
+
+
+                } else if (!isempty(path_startswith(device->devpath, "/module/")))
                         r = device_set_subsystem(device, "module");
                 else if (strstr(device->devpath, "/drivers/") || endswith(device->devpath, "/drivers"))
                         r = device_set_drivers_subsystem(device);
@@ -2344,6 +2364,9 @@ _public_ int sd_device_get_trigger_uuid(sd_device *device, sd_id128_t *ret) {
         const char *s;
         sd_id128_t id;
         int r;
+
+
+	fprintf(stderr, "Sairam: At the Top of the Method: %s\n", __func__);
 
         assert_return(device, -EINVAL);
 
