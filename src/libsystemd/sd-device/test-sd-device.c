@@ -160,6 +160,9 @@ static void test_sd_device_one(sd_device *d) {
         else {
                 const char *name, *id;
 
+                if (streq_ptr(subsystem, "subsystem") && streq(sysname, "slots"))
+                        return;
+
                 if (streq(subsystem, "drivers")) {
                         const char *driver_subsystem;
                         ASSERT_OK(sd_device_get_driver_subsystem(d, &driver_subsystem));

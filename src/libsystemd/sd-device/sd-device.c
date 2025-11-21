@@ -543,6 +543,23 @@ _public_ int sd_device_new_from_subsystem_sysname(
                         if (r < 0)
                                 return r;
                 }
+        } else if (streq(subsystem, "slots")) {
+                _cleanup_closedir_ DIR *dir = NULL;
+
+                dir = opendir("/sys/bus");
+                if (dir) {
+                        FOREACH_DIRENT_ALL(de, dir, return -errno) {
+                                if (dot_or_dot_dot(de->d_name))
+                                        continue;
+                                if (de->d_type != DT_DIR && de->d_type != DT_LNK)
+                                        continue;
+                                r = device_new_from_path_join(&device, subsystem,
+                                                /* driver_subsystem= */ NULL, sysname,
+                                                "/sys/bus/", de->d_name, "/slots/", name);
+                                if (r < 0)
+                                        return r;
+                        }
+                }
         }
 
         r = device_new_from_path_join(&device, subsystem, /* driver_subsystem= */ NULL, sysname, "/sys/bus/", subsystem, "/devices/", name);
@@ -1266,6 +1283,8 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
                 if (r >= 0)
                         r = device_set_subsystem(device, subsystem);
                 /* use implicit names */
+                else if (strstr_ptr(path_startswith(device->devpath, "/bus/"), "/slots/"))
+                        r = device_set_subsystem(device, "slots");
                 else if (!isempty(path_startswith(device->devpath, "/module/")))
                         r = device_set_subsystem(device, "module");
                 else if (strstr(device->devpath, "/drivers/") || endswith(device->devpath, "/drivers"))
