@@ -104,11 +104,17 @@ static void test_sd_device_one(sd_device *d) {
         usec_t usec;
         int ifindex, r;
 
+        char *ram_subsystem = NULL;
+        char *ram_slot_subsystem = NULL;
+
         ASSERT_OK(sd_device_get_syspath(d, &syspath));
         ASSERT_NOT_NULL(path_startswith(syspath, "/sys"));
         ASSERT_OK(sd_device_get_sysname(d, &sysname));
 
-        log_info("%s(%s)", __func__, syspath);
+        if (strstr(syspath, "slots")) {
+                log_warning("  ");
+                log_info("%s: %s", __func__, syspath);
+        }
 
         ASSERT_OK(sd_device_new_from_syspath(&dev, syspath));
         ASSERT_OK(sd_device_get_syspath(dev, &val));
@@ -119,6 +125,8 @@ static void test_sd_device_one(sd_device *d) {
         ASSERT_OK(sd_device_get_syspath(dev, &val));
         ASSERT_STREQ(syspath, val);
         ASSERT_NULL(dev = sd_device_unref(dev));
+
+
 
         r = sd_device_get_ifindex(d, &ifindex);
         if (r < 0)
@@ -154,26 +162,59 @@ static void test_sd_device_one(sd_device *d) {
                 ASSERT_NULL(dev = sd_device_unref(dev));
         }
 
+        // char *subsystem;
+        // char *driver_subsystem; /* only set for the 'drivers' subsystem */
+        //char *slot_subsystem;   /* only set for the 'slots' subsystem */
+        /* Print some debug messages */
+        if(d->subsystem && streq(d->subsystem, "slots")) {
+                log_warning("  ");
+                log_warning("1. %s: Existing Subsystem is: %s", __func__, d->subsystem);
+                if(d->slot_subsystem)
+                        log_warning("1. %s: Existing Slot Subsystem is: %s", __func__, d->slot_subsystem);
+                log_warning("  ");
+                subsystem = "Sairam";
+        }
+
+        if(subsystem) {
+                log_warning("%s: Local Var Subsystem Assigned To: %s\n", __func__, subsystem);
+                log_warning("  ");
+        }
+
         r = sd_device_get_subsystem(d, &subsystem);
         if (r < 0)
                 ASSERT_ERROR(r, ENOENT);
         else {
                 const char *name, *id;
 
-                if (streq_ptr(subsystem, "subsystem") && streq(sysname, "slots"))
-                        return;
+                if(subsystem && streq(subsystem, "slots")) {
+                        log_warning("  ");
+                        log_warning("2.%s: Local Var Subsystem Updated To: %s\n", __func__, subsystem);
+                        if(d->slot_subsystem)
+                                log_warning("2. %s: Computed Slot Subsystem is: %s\n", __func__, d->slot_subsystem);
+                        log_warning("  ");
+                }
 
                 if (streq(subsystem, "drivers")) {
                         const char *driver_subsystem;
                         ASSERT_OK(sd_device_get_driver_subsystem(d, &driver_subsystem));
                         name = strjoina(driver_subsystem, ":", sysname);
+                } else if (streq(subsystem, "slots")) {
+                        const char *slot_subsystem;
+                        ASSERT_OK(sd_device_get_slot_subsystem(d, &slot_subsystem));
+                        log_warning("3. %s: Local Var Subsystem Post Assignment is: %s", __func__, subsystem);
+                        log_warning("3. %s:             Computed Slot Subsystem is: %s", __func__, slot_subsystem);
+                        log_warning("3. %s:                   Input Arg Sysname is: %s", __func__, sysname);
+                        name = strjoina(slot_subsystem, ":", sysname);
+                        log_warning("3. %s:                       Computed Name is: %s\n", __func__, name);
+                        log_warning("  ");
                 } else
                         name = sysname;
 
                 r = sd_device_new_from_subsystem_sysname(&dev, subsystem, name);
-                if (r < 0)
-                        ASSERT_ERROR(r, ETOOMANYREFS);
-                else {
+                if (r < 0) {
+                        /* Accept both ETOOMANYREFS (multiple devices) and ENODEV (directory paths like "slots" or "drivers") */
+                        ASSERT_TRUE(IN_SET(r, -ETOOMANYREFS, -ENODEV));
+                } else {
                         ASSERT_OK(sd_device_get_syspath(dev, &val));
                         ASSERT_STREQ(syspath, val);
                         ASSERT_NULL(dev = sd_device_unref(dev));

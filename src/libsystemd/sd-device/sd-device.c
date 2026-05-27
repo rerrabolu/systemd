@@ -64,6 +64,7 @@ static sd_device* device_free(sd_device *device) {
         free(device->devname);
         free(device->subsystem);
         free(device->driver_subsystem);
+        free(device->slot_subsystem);
         free(device->driver);
         free(device->device_id);
         free(device->properties_strv);
@@ -430,13 +431,38 @@ static int device_new_from_path_join(
         _cleanup_(sd_device_unrefp) sd_device *new_device = NULL;
         _cleanup_free_ char *p = NULL;
         int r;
+        bool ram = false;
 
         assert(device);
         assert(sysname);
 
+        if (c && (streq(c, "/slots") || streq(c, "/slots/"))) {
+                ram = true;
+                log_warning("  ");
+                log_warning("5. %s:      Subsystem is: %s", __func__, subsystem);
+                log_warning("5. %s: Slot Subsystem is: %s", __func__, driver_subsystem);
+                log_warning("5. %s:        Sysname is: %s", __func__, sysname);
+                log_warning("  ");
+                if (a != NULL)
+                log_warning("5. %s: Arg A is /sys/bus/: %s", __func__, a);
+                if (b != NULL)
+                log_warning("5. %s:       Arg B is pci: %s", __func__, b);
+                if (c != NULL)
+                log_warning("5. %s: Arg    C is /slots: %s", __func__, c);
+                if (d != NULL)
+                        log_warning("4. %s: Arg D is 'sysname': %s", __func__, d);
+                else
+                        log_warning("4. %s: Arg D is NULL", __func__);
+        }
+
         p = path_join(a, b, c, d);
         if (!p)
                 return -ENOMEM;
+
+        if (ram) {
+                log_warning("  ");
+                log_warning("5. %s: Combined Path is: %s", __func__, p);
+        }
 
         r = sd_device_new_from_syspath(&new_device, p);
         if (r == -ENODEV)
@@ -444,27 +470,55 @@ static int device_new_from_path_join(
         if (r < 0)
                 return r;
 
+        if (ram)
+                log_warning("5. %s: Return value of sd_device_new_from_syspath: %d", __func__, r);
+
         /* Check if the found device really has the expected subsystem and sysname, for safety. */
         r = device_in_subsystem(new_device, subsystem);
         if (r <= 0)
                 return r;
 
+        if (ram)
+                log_warning("5. %s: Return value of device_in_subsystem: %d", __func__, r);
+
         const char *new_driver_subsystem = NULL;
         (void) sd_device_get_driver_subsystem(new_device, &new_driver_subsystem);
 
-        if (!streq_ptr(driver_subsystem, new_driver_subsystem))
-                return 0;
+        if (!streq_ptr(driver_subsystem, new_driver_subsystem)) {
+                /* For slots subsystem, also check slot_subsystem */
+                const char *new_slot_subsystem = NULL;
+                (void) sd_device_get_slot_subsystem(new_device, &new_slot_subsystem);
 
-        const char *new_sysname;
+                if (ram)  {
+                        if (driver_subsystem)
+                        log_warning("5. %s: Driver Subsytem is: %s", __func__, driver_subsystem);
+                        if (new_slot_subsystem)
+                        log_warning("5. %s: New Slot Subsytem is: %s", __func__, new_slot_subsystem);
+                }
+
+                if (!streq_ptr(driver_subsystem, new_slot_subsystem))
+                        return 0;
+        }
+
+        const char *new_sysname = NULL;
         r = sd_device_get_sysname(new_device, &new_sysname);
         if (r < 0)
                 return r;
+
+        if (ram)  {
+                if (sysname)
+                log_warning("5. %s: Old Sysname is: %s", __func__, sysname);
+                if (new_sysname)
+                log_warning("5. %s: New Sysname is: %s", __func__, new_sysname);
+        }
 
         if (!streq(sysname, new_sysname))
                 return 0;
 
         /* If this is the first device we found, then take it. */
         if (!*device) {
+                if (ram)
+                        log_warning("5. %s: First Device Taking it", __func__);
                 *device = TAKE_PTR(new_device);
                 return 1;
         }
@@ -484,6 +538,13 @@ static int device_new_from_path_join(
         r = sd_device_get_devpath(new_device, &new_devpath);
         if (r < 0)
                 return r;
+
+        if (ram)  {
+                if (devpath)
+                log_warning("5. %s: Old Devpath is: %s", __func__, devpath);
+                if (new_devpath)
+                log_warning("5. %s: New Devpath is: %s", __func__, new_devpath);
+        }
 
         if (!streq(devpath, new_devpath))
                 return log_debug_errno(SYNTHETIC_ERRNO(ETOOMANYREFS),
@@ -544,6 +605,42 @@ _public_ int sd_device_new_from_subsystem_sysname(
                                 return r;
                 }
         } else if (streq(subsystem, "slots")) {
+                const char *sep;
+
+                /* Require ":" and something non-empty after that. */
+                sep = strchr(name, ':');
+                log_warning("  ");
+                log_warning("4. %s: Name == Slot_Subsystem + Sysname (pci + slots): %s", __func__, name);
+                log_warning("4. %s:      Name Without Slot_Subsystem == Sysname is: %s", __func__, sep+1);
+                if (sep && sep[1] != '\0') {
+
+                    const char *subsys = memdupa_suffix0(name, sep - name);
+                    sep++;
+
+                    log_warning("4. %s:                   Subsystem  is: %s", __func__, subsystem);
+                    log_warning("4. %s: Bus Of Slot SubSystem (Bus)  is: %s", __func__, subsys);
+
+                    /* Determine if the sysname is "slots" or "/slots/" */
+                    if (streq(sep, "slots")) {
+                        log_warning("4. %s: Calling as sep is 'slots'", __func__);
+                        r = device_new_from_path_join(&device, subsystem, subsys,
+                                        "slots", "/sys/bus/", subsys, "/slots", NULL);
+                        log_warning("4. %s: Value of SLOTS Return is:  %d", __func__, r);
+                        log_warning("  ");
+                    } else {
+                        log_warning("4. %s: Calling as sep is NOT 'slots'", __func__);
+                        r = device_new_from_path_join(&device, subsystem, subsys,
+                                        sep, "/sys/bus/", subsys, "/slots/", sep);
+                        log_warning("4. %s: Value of NOT SLOTS Return is:  %d", __func__, r);
+                        log_warning("  ");
+                    }
+
+                    if (r < 0)
+                        return r;
+                }
+
+
+                #if 0
                 _cleanup_closedir_ DIR *dir = NULL;
 
                 dir = opendir("/sys/bus");
@@ -560,6 +657,8 @@ _public_ int sd_device_new_from_subsystem_sysname(
                                         return r;
                         }
                 }
+                #endif
+
         }
 
         r = device_new_from_path_join(&device, subsystem, /* driver_subsystem= */ NULL, sysname, "/sys/bus/", subsystem, "/devices/", name);
@@ -1263,6 +1362,45 @@ int device_set_drivers_subsystem(sd_device *device) {
         return free_and_replace(device->driver_subsystem, subsystem);
 }
 
+int device_set_slots_subsystem(sd_device *device) {
+    _cleanup_free_ char *subsystem = NULL;
+    const char *devpath, *slots, *bus;
+    int len;
+    int ret;
+
+    assert(device);
+
+    ret = sd_device_get_devpath(device, &devpath);
+    if (ret < 0)
+        return ret;
+
+    /* Find "/slots/" or ending "/slots" */
+    slots = strstr(devpath, "/slots/");
+    if (!slots)
+        slots = endswith(devpath, "/slots");
+    if (!slots)
+        return -EINVAL;
+
+    /* Find the 'bus' immediately before "/slots"
+     * Set accepting_of_dot_dot in path as false
+     */
+    len = path_find_last_component(devpath, false, &slots, &bus);
+    if (len < 0)
+        return len;
+    if (len == 0)
+        return -EINVAL;
+
+    subsystem = strndup(bus, len);
+    if (!subsystem)
+        return -ENOMEM;
+
+    ret = device_set_subsystem(device, "slots");
+    if (ret < 0)
+        return ret;
+
+    return free_and_replace(device->slot_subsystem, subsystem);
+}
+
 _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
         int r;
 
@@ -1283,8 +1421,9 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
                 if (r >= 0)
                         r = device_set_subsystem(device, subsystem);
                 /* use implicit names */
-                else if (strstr_ptr(path_startswith(device->devpath, "/bus/"), "/slots/"))
-                        r = device_set_subsystem(device, "slots");
+                //else if (strstr_ptr(path_startswith(device->devpath, "/bus/"), "/slots/"))
+                else if (strstr(device->devpath, "/slots/") || endswith(device->devpath, "/slots"))
+                        r = device_set_slots_subsystem(device);
                 else if (!isempty(path_startswith(device->devpath, "/module/")))
                         r = device_set_subsystem(device, "module");
                 else if (strstr(device->devpath, "/drivers/") || endswith(device->devpath, "/drivers"))
@@ -1322,6 +1461,25 @@ _public_ int sd_device_get_driver_subsystem(sd_device *device, const char **ret)
 
         if (ret)
                 *ret = device->driver_subsystem;
+
+        return 0;
+}
+
+_public_ int sd_device_get_slot_subsystem(sd_device *device, const char **ret) {
+        int r;
+
+        assert_return(device, -EINVAL);
+
+        r = device_in_subsystem(device, "slots");
+        if (r < 0)
+                return r;
+        if (r == 0)
+                return -ENOENT;
+
+        assert(device->slot_subsystem);
+
+        if (ret)
+                *ret = device->slot_subsystem;
 
         return 0;
 }
@@ -1805,14 +1963,31 @@ _public_ int sd_device_get_device_id(sd_device *device, const char **ret) {
                                 /* the 'drivers' pseudo-subsystem is special, and needs the real
                                  * subsystem encoded as well */
                                 id = strjoin("+drivers:", ASSERT_PTR(device->driver_subsystem), ":", sysname);
+
                         else {
-                                const char *subsystem;
-                                r = sd_device_get_subsystem(device, &subsystem);
+                                r = device_in_subsystem(device, "slots");
                                 if (r < 0)
                                         return r;
+                                if (r > 0) {
+                                        /* the 'slots' pseudo-subsystem is special, and needs the real
+                                        * subsystem encoded as well */
+                                        id = strjoin("+slots:", ASSERT_PTR(device->slot_subsystem), ":", sysname);
+                                        log_warning("  ");
+                                        log_warning("X. %s: Joining of +slots, slot_subsystem, :, sysname is: %s", __func__, id);
+                                        log_warning("  ");
+                                } else {
+                                        const char *subsystem;
+                                        r = sd_device_get_subsystem(device, &subsystem);
+                                        if (r < 0)
+                                                return r;
 
-                                id = strjoin("+", subsystem, ":", sysname);
+                                        id = strjoin("+", subsystem, ":", sysname);
+                                        //log_warning("  ");
+                                        //log_warning("X. %s: Joining of +, subsystem, :, sysname is: %s", __func__, id);
+                                        //log_warning("  ");
+                                }
                         }
+
                         if (!id)
                                 return -ENOMEM;
                 }
