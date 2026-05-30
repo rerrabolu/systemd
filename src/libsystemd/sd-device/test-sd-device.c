@@ -164,6 +164,10 @@ static void test_sd_device_one(sd_device *d) {
                         const char *driver_subsystem;
                         ASSERT_OK(sd_device_get_driver_subsystem(d, &driver_subsystem));
                         name = strjoina(driver_subsystem, ":", sysname);
+                } else if (streq(subsystem, "slots")) {
+                        const char *slot_subsystem;
+                        ASSERT_OK(sd_device_get_slot_subsystem(d, &slot_subsystem));
+                        name = strjoina(slot_subsystem, ":", sysname);
                 } else
                         name = sysname;
 
