@@ -166,6 +166,7 @@ static void test_sd_device_one(sd_device *d) {
                         name = strjoina(driver_subsystem, ":", sysname);
                 } else if (streq(subsystem, "slots")) {
                         const char *slot_subsystem;
+                        log_warning("Sairam: In test sd-device function: %s", syspath);
                         ASSERT_OK(sd_device_get_slot_subsystem(d, &slot_subsystem));
                         name = strjoina(slot_subsystem, ":", sysname);
                 } else

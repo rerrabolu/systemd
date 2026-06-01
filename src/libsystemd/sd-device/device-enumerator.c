@@ -1084,6 +1084,7 @@ int device_enumerator_scan_subsystems(sd_device_enumerator *enumerator) {
 
         /* subsystem slots */
         if (match_subsystem(enumerator, "slots")) {
+                log_warning("Sairam: In scan subsystems function: %s", __func__);
                 k = enumerator_scan_dir(enumerator, "bus", "slots", "slots");
                 if (k < 0)
                         r = log_debug_errno(k, "sd-device-enumerator: Failed to scan slots: %m");
@@ -1162,6 +1163,7 @@ int device_enumerator_scan_devices_and_subsystems(sd_device_enumerator *enumerat
                 }
 
                 if (match_subsystem(enumerator, "slots")) {
+                        log_warning("Sairam: In scan devices & subsystems function: %s", __func__);
                         k = enumerator_scan_dir(enumerator, "bus", "slots", "slots");
                         if (k < 0)
                                 r = log_debug_errno(k, "sd-device-enumerator: Failed to scan slots: %m");

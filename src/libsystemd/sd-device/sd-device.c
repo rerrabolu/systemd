@@ -450,8 +450,10 @@ static int device_new_from_path_join(
                 const char *new_slot_subsystem = NULL;
                 (void) sd_device_get_slot_subsystem(new_device, &new_slot_subsystem);
 
-                if (!streq_ptr(driver_subsystem, new_slot_subsystem))
+                if (!streq_ptr(driver_subsystem, new_slot_subsystem)) {
+                        log_warning("Sairam: %s - Found device with Name: %s", __func__, new_slot_subsystem);
                         return 0;
+                }
         }
 
         const char *new_sysname;
@@ -545,6 +547,8 @@ _public_ int sd_device_new_from_subsystem_sysname(
 
         } else if (streq(subsystem, "slots")) {
                 const char *sep;
+
+                log_warning("Sairam: %s - Dealing with device with Name: %s", __func__, name);
 
                 /* Require ":" and something non-empty after that. */
                 sep = strchr(name, ':');
@@ -1325,9 +1329,10 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
                 if (r >= 0)
                         r = device_set_subsystem(device, subsystem);
                 /* use implicit names */
-                else if (strstr(device->devpath, "/slots/") || endswith(device->devpath, "/slots"))
+                else if (strstr(device->devpath, "/slots/") || endswith(device->devpath, "/slots")) {
+                        log_warning("Sairam: %s - Dealing with Devpath: %s", __func__, device->devpath);
                         r = device_set_slots_subsystem(device);
-                else if (!isempty(path_startswith(device->devpath, "/module/")))
+                } else if (!isempty(path_startswith(device->devpath, "/module/")))
                         r = device_set_subsystem(device, "module");
                 else if (strstr(device->devpath, "/drivers/") || endswith(device->devpath, "/drivers"))
                         r = device_set_drivers_subsystem(device);
@@ -1878,6 +1883,7 @@ _public_ int sd_device_get_device_id(sd_device *device, const char **ret) {
                                 /* the 'slots' pseudo-subsystem is special, and needs the real
                                  * subsystem encoded as well */
                                 id = strjoin("+slots:", ASSERT_PTR(device->slot_subsystem), ":", sysname);
+                                log_warning("Sairam: %s - Found device with ID: %s", __func__, id);
                                 goto handle_id;
                         }
 
