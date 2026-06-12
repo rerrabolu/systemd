@@ -62,7 +62,7 @@ static sd_device* device_free(sd_device *device) {
         free(device->devtype);
         free(device->devname);
         free(device->subsystem);
-        free(device->driver_subsystem);
+        free(device->pseudo_subsystem);
         free(device->driver);
         free(device->device_id);
         free(device->properties_strv);
@@ -412,7 +412,7 @@ _public_ int sd_device_new_from_ifindex(sd_device **ret, int ifindex) {
 static int device_new_from_path_join(
                 sd_device **device,
                 const char *subsystem,
-                const char *driver_subsystem,
+                const char *pseudo_subsystem,
                 const char *sysname,
                 const char *a,
                 const char *b,
@@ -441,10 +441,10 @@ static int device_new_from_path_join(
         if (r <= 0)
                 return r;
 
-        const char *new_driver_subsystem = NULL;
-        (void) sd_device_get_driver_subsystem(new_device, &new_driver_subsystem);
+        const char *new_pseudo_subsys = NULL;
+        (void) sd_device_get_pseudo_subsystem(new_device, &new_pseudo_subsys);
 
-        if (!streq_ptr(driver_subsystem, new_driver_subsystem))
+        if (!streq_ptr(pseudo_subsystem, new_pseudo_subsys))
                 return 0;
 
         const char *new_sysname;
@@ -509,13 +509,13 @@ _public_ int sd_device_new_from_subsystem_sysname(
 
         if (streq(subsystem, "subsystem")) {
                 FOREACH_STRING(s, "/sys/bus/", "/sys/class/") {
-                        r = device_new_from_path_join(&device, subsystem, /* driver_subsystem= */ NULL, sysname, s, name, NULL, NULL);
+                        r = device_new_from_path_join(&device, subsystem, /* pseudo_subsystem= */ NULL, sysname, s, name, NULL, NULL);
                         if (r < 0)
                                 return r;
                 }
 
         } else if (streq(subsystem, "module")) {
-                r = device_new_from_path_join(&device, subsystem, /* driver_subsystem= */ NULL, sysname, "/sys/module/", name, NULL, NULL);
+                r = device_new_from_path_join(&device, subsystem, /* pseudo_subsystem= */ NULL, sysname, "/sys/module/", name, NULL, NULL);
                 if (r < 0)
                         return r;
 
@@ -537,17 +537,17 @@ _public_ int sd_device_new_from_subsystem_sysname(
                 }
         }
 
-        r = device_new_from_path_join(&device, subsystem, /* driver_subsystem= */ NULL, sysname, "/sys/bus/", subsystem, "/devices/", name);
+        r = device_new_from_path_join(&device, subsystem, /* pseudo_subsystem= */ NULL, sysname, "/sys/bus/", subsystem, "/devices/", name);
         if (r < 0)
                 return r;
 
-        r = device_new_from_path_join(&device, subsystem, /* driver_subsystem= */ NULL, sysname, "/sys/class/", subsystem, name, NULL);
+        r = device_new_from_path_join(&device, subsystem, /* pseudo_subsystem= */ NULL, sysname, "/sys/class/", subsystem, name, NULL);
         if (r < 0)
                 return r;
 
         /* Note that devices under /sys/firmware/ (e.g. /sys/firmware/devicetree/base/) do not have
          * subsystem. Hence, pass NULL for subsystem. See issue #35861. */
-        r = device_new_from_path_join(&device, /* subsystem= */ NULL, /* driver_subsystem= */ NULL, sysname, "/sys/firmware/", subsystem, name, NULL);
+        r = device_new_from_path_join(&device, /* subsystem= */ NULL, /* pseudo_subsystem= */ NULL, sysname, "/sys/firmware/", subsystem, name, NULL);
         if (r < 0)
                 return r;
 
@@ -871,7 +871,7 @@ int device_read_uevent_file(sd_device *device) {
         if (r < 0)
                 log_device_debug_errno(device, r, "Failed to check if the device is a driver, ignoring: %m");
         if (r > 0) {
-                r = device_set_drivers_subsystem(device);
+                r = device_set_pseudo_subsystem(device, "drivers");
                 if (r < 0)
                         log_device_debug_errno(device, r,
                                                "sd-device: Failed to set driver subsystem, ignoring: %m");
@@ -1203,9 +1203,10 @@ int device_set_subsystem(sd_device *device, const char *subsystem) {
         return free_and_replace(device->subsystem, s);
 }
 
-int device_set_drivers_subsystem(sd_device *device) {
+int device_set_pseudo_subsystem(sd_device *device, const char *pseudo_subsys) {
         _cleanup_free_ char *subsystem = NULL;
         const char *devpath, *drivers, *p;
+        char *name_1, *name_2;
         int r;
 
         assert(device);
@@ -1214,9 +1215,18 @@ int device_set_drivers_subsystem(sd_device *device) {
         if (r < 0)
                 return r;
 
-        drivers = strstr(devpath, "/drivers/");
-        if (!drivers)
-                drivers = endswith(devpath, "/drivers");
+        if (asprintf(&name_1, "/%s/", pseudo_subsys) < 0)
+                return -EINVAL;
+        drivers = strstr(devpath, name_1);
+        free(name_1);
+
+        if (!drivers) {
+                if (asprintf(&name_2, "/%s", pseudo_subsys) < 0)
+                        return -EINVAL;
+                drivers = endswith(devpath, name_2);
+                free(name_2);
+        }
+
         if (!drivers)
                 return -EINVAL;
 
@@ -1231,11 +1241,11 @@ int device_set_drivers_subsystem(sd_device *device) {
         if (!subsystem)
                 return -ENOMEM;
 
-        r = device_set_subsystem(device, "drivers");
+        r = device_set_subsystem(device, pseudo_subsys);
         if (r < 0)
                 return r;
 
-        return free_and_replace(device->driver_subsystem, subsystem);
+        return free_and_replace(device->pseudo_subsystem, subsystem);
 }
 
 _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
@@ -1261,7 +1271,7 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
                 else if (!isempty(path_startswith(device->devpath, "/module/")))
                         r = device_set_subsystem(device, "module");
                 else if (strstr(device->devpath, "/drivers/") || endswith(device->devpath, "/drivers"))
-                        r = device_set_drivers_subsystem(device);
+                        r = device_set_pseudo_subsystem(device, "drivers");
                 else if (!isempty(PATH_STARTSWITH_SET(device->devpath, "/class/", "/bus/")))
                         r = device_set_subsystem(device, "subsystem");
                 else
@@ -1280,7 +1290,7 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
         return 0;
 }
 
-_public_ int sd_device_get_driver_subsystem(sd_device *device, const char **ret) {
+_public_ int sd_device_get_pseudo_subsystem(sd_device *device, const char **ret) {
         int r;
 
         assert_return(device, -EINVAL);
@@ -1291,10 +1301,10 @@ _public_ int sd_device_get_driver_subsystem(sd_device *device, const char **ret)
         if (r == 0)
                 return -ENOENT;
 
-        assert(device->driver_subsystem);
+        assert(device->pseudo_subsystem);
 
         if (ret)
-                *ret = device->driver_subsystem;
+                *ret = device->pseudo_subsystem;
 
         return 0;
 }
@@ -1777,7 +1787,7 @@ _public_ int sd_device_get_device_id(sd_device *device, const char **ret) {
                         if (r > 0)
                                 /* the 'drivers' pseudo-subsystem is special, and needs the real
                                  * subsystem encoded as well */
-                                id = strjoin("+drivers:", ASSERT_PTR(device->driver_subsystem), ":", sysname);
+                                id = strjoin("+drivers:", ASSERT_PTR(device->pseudo_subsystem), ":", sysname);
                         else {
                                 const char *subsystem;
                                 r = sd_device_get_subsystem(device, &subsystem);

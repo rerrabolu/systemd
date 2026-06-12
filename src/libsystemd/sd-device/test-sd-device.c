@@ -55,7 +55,7 @@ TEST(mdio_bus) {
                         { sd_device_get_syspath,          syspath                          },
                         { sd_device_get_device_id,        id                               },
                         { sd_device_get_subsystem,        "drivers"                        },
-                        { sd_device_get_driver_subsystem, "mdio_bus"                       },
+                        { sd_device_get_pseudo_subsystem, "mdio_bus"                       },
                         { sd_device_get_sysname,          "Qualcomm Atheros AR8031/AR8033" },
                 };
 
@@ -161,9 +161,9 @@ static void test_sd_device_one(sd_device *d) {
                 const char *name, *id;
 
                 if (streq(subsystem, "drivers")) {
-                        const char *driver_subsystem;
-                        ASSERT_OK(sd_device_get_driver_subsystem(d, &driver_subsystem));
-                        name = strjoina(driver_subsystem, ":", sysname);
+                        const char *pseudo_subsys;
+                        ASSERT_OK(sd_device_get_pseudo_subsystem(d, &pseudo_subsys));
+                        name = strjoina(pseudo_subsys, ":", sysname);
                 } else
                         name = sysname;
 
