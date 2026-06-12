@@ -442,6 +442,7 @@ static int device_verify(sd_device *device) {
                 return log_device_debug_errno(device, SYNTHETIC_ERRNO(EINVAL),
                                               "sd-device: Device created from strv or nulstr lacks devpath, subsystem, action or seqnum.");
 
+        /* Check device's pseudo-subsytem is 'drivers' */
         r = device_in_subsystem(device, "drivers");
         if (r < 0)
                 return log_device_debug_errno(device, r, "sd-device: Failed to check if the device is a driver: %m");
@@ -450,8 +451,21 @@ static int device_verify(sd_device *device) {
                 if (r < 0)
                         return log_device_debug_errno(device, r,
                                                       "sd-device: Failed to set driver subsystem: %m");
+                goto done;
         }
 
+        /* Check device's pseudo-subsytem is 'slots' */
+        r = device_in_subsystem(device, "slots");
+        if (r < 0)
+                return log_device_debug_errno(device, r, "sd-device: Failed to check if the device is a slot: %m");
+        if (r > 0) {
+                r = device_set_pseudo_subsystem(device, "slots");
+                if (r < 0)
+                        return log_device_debug_errno(device, r,
+                                                      "sd-device: Failed to set slots subsystem: %m");
+        }
+
+done:
         device->sealed = true;
 
         return 0;
@@ -677,10 +691,13 @@ int device_clone_with_db(sd_device *device, sd_device **ret) {
                 if (r < 0)
                         return r;
 
-                if (streq(key, "SUBSYSTEM") && streq(val, "drivers")) {
-                        r = free_and_strdup(&dest->pseudo_subsystem, device->pseudo_subsystem);
-                        if (r < 0)
-                                return r;
+                /* Check device's pseudo-subsytem is 'drivers' or 'slots' */
+                if (streq(key, "SUBSYSTEM")) {
+                        if (streq(val, "drivers") || streq(val, "slots")) {
+                                r = free_and_strdup(&dest->pseudo_subsystem, device->pseudo_subsystem);
+                                if (r < 0)
+                                        return r;
+                        }
                 }
         }
 

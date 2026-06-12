@@ -412,7 +412,7 @@ _public_ int sd_device_new_from_ifindex(sd_device **ret, int ifindex) {
 static int device_new_from_path_join(
                 sd_device **device,
                 const char *subsystem,
-                const char *pseudo_subsystem,
+                const char *pseudo_subsys,
                 const char *sysname,
                 const char *a,
                 const char *b,
@@ -444,7 +444,7 @@ static int device_new_from_path_join(
         const char *new_pseudo_subsys = NULL;
         (void) sd_device_get_pseudo_subsystem(new_device, &new_pseudo_subsys);
 
-        if (!streq_ptr(pseudo_subsystem, new_pseudo_subsys))
+        if (!streq_ptr(pseudo_subsys, new_pseudo_subsys))
                 return 0;
 
         const char *new_sysname;
@@ -532,6 +532,27 @@ _public_ int sd_device_new_from_subsystem_sysname(
                                 r = device_new_from_path_join(&device, subsystem, subsys, "drivers", "/sys/bus/", subsys, "/drivers", NULL);
                         else
                                 r = device_new_from_path_join(&device, subsystem, subsys, sysname + (sep - name), "/sys/bus/", subsys, "/drivers/", sep);
+                        if (r < 0)
+                                return r;
+                }
+
+        } else if (streq(subsystem, "slots")) {
+                const char *sep;
+
+                /* Require ":" and something non-empty after that. */
+                sep = strchr(name, ':');
+                if (sep && sep[1] != '\0') {
+
+                        const char *subsys = memdupa_suffix0(name, sep - name);
+                        sep++;
+
+                        /* Determine if the sysname is "slots" or "1234" */
+                        if (streq(sep, "slots"))
+                                r = device_new_from_path_join(
+                                                &device, subsystem, subsys, sep, "/sys/bus/", subsys, "/slots", NULL);
+                        else
+                                r = device_new_from_path_join(
+                                                &device, subsystem, subsys, sep, "/sys/bus/", subsys, "/slots/", sep);
                         if (r < 0)
                                 return r;
                 }
@@ -867,6 +888,7 @@ int device_read_uevent_file(sd_device *device) {
                                                major, strna(minor));
         }
 
+        /* Check if device belongs to drivers subsystem */
         r = device_in_subsystem(device, "drivers");
         if (r < 0)
                 log_device_debug_errno(device, r, "Failed to check if the device is a driver, ignoring: %m");
@@ -875,8 +897,21 @@ int device_read_uevent_file(sd_device *device) {
                 if (r < 0)
                         log_device_debug_errno(device, r,
                                                "sd-device: Failed to set driver subsystem, ignoring: %m");
+                goto done;
         }
 
+        /* Check if device belongs to slots subsystem */
+        r = device_in_subsystem(device, "slots");
+        if (r < 0)
+                log_device_debug_errno(device, r, "Failed to check if the device is a slot, ignoring: %m");
+        if (r > 0) {
+                r = device_set_pseudo_subsystem(device, "slots");
+                if (r < 0)
+                        log_device_debug_errno(device, r,
+                                               "sd-device: Failed to set slots subsystem, ignoring: %m");
+        }
+
+done:
         return 0;
 }
 
@@ -1268,6 +1303,8 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
                 if (r >= 0)
                         r = device_set_subsystem(device, subsystem);
                 /* use implicit names */
+                else if (strstr(device->devpath, "/slots/") || endswith(device->devpath, "/slots"))
+                        r = device_set_pseudo_subsystem(device, "slots");
                 else if (!isempty(path_startswith(device->devpath, "/module/")))
                         r = device_set_subsystem(device, "module");
                 else if (strstr(device->devpath, "/drivers/") || endswith(device->devpath, "/drivers"))
@@ -1291,17 +1328,11 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
 }
 
 _public_ int sd_device_get_pseudo_subsystem(sd_device *device, const char **ret) {
-        int r;
 
         assert_return(device, -EINVAL);
 
-        r = device_in_subsystem(device, "drivers");
-        if (r < 0)
-                return r;
-        if (r == 0)
+        if (!device->pseudo_subsystem)
                 return -ENOENT;
-
-        assert(device->pseudo_subsystem);
 
         if (ret)
                 *ret = device->pseudo_subsystem;
@@ -1781,21 +1812,33 @@ _public_ int sd_device_get_device_id(sd_device *device, const char **ret) {
                         if (r == O_DIRECTORY)
                                 return -EINVAL;
 
+                        /* Check if device belongs to drivers subsystem */
                         r = device_in_subsystem(device, "drivers");
                         if (r < 0)
                                 return r;
-                        if (r > 0)
+                        if (r > 0) {
                                 /* the 'drivers' pseudo-subsystem is special, and needs the real
                                  * subsystem encoded as well */
                                 id = strjoin("+drivers:", ASSERT_PTR(device->pseudo_subsystem), ":", sysname);
-                        else {
-                                const char *subsystem;
-                                r = sd_device_get_subsystem(device, &subsystem);
-                                if (r < 0)
-                                        return r;
-
-                                id = strjoin("+", subsystem, ":", sysname);
+                                goto handle_id;
                         }
+
+                        /* Check if device belongs to slots subsystem */
+                        r = device_in_subsystem(device, "slots");
+                        if (r < 0)
+                                return r;
+                        if (r > 0) {
+                                id = strjoin("+slots:", ASSERT_PTR(device->pseudo_subsystem), ":", sysname);
+                                goto handle_id;
+                        }
+
+                        const char *subsystem;
+                        r = sd_device_get_subsystem(device, &subsystem);
+                        if (r < 0)
+                                return r;
+                        id = strjoin("+", subsystem, ":", sysname);
+
+                        handle_id:
                         if (!id)
                                 return -ENOMEM;
                 }

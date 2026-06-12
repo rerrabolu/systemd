@@ -1075,11 +1075,18 @@ int device_enumerator_scan_subsystems(sd_device_enumerator *enumerator) {
                         r = log_debug_errno(k, "sd-device-enumerator: Failed to scan subsystems: %m");
         }
 
-        /* subsystem drivers */
+        /* pseudo-subsystem drivers */
         if (match_subsystem(enumerator, "drivers")) {
                 k = enumerator_scan_dir(enumerator, "bus", "drivers", "drivers");
                 if (k < 0)
                         r = log_debug_errno(k, "sd-device-enumerator: Failed to scan drivers: %m");
+        }
+
+        /* pseudo-subsystem slots */
+        if (match_subsystem(enumerator, "slots")) {
+                k = enumerator_scan_dir(enumerator, "bus", "slots", "slots");
+                if (k < 0)
+                        r = log_debug_errno(k, "sd-device-enumerator: Failed to scan slots: %m");
         }
 
         enumerator->scan_uptodate = true;
@@ -1152,6 +1159,12 @@ int device_enumerator_scan_devices_and_subsystems(sd_device_enumerator *enumerat
                         k = enumerator_scan_dir(enumerator, "bus", "drivers", "drivers");
                         if (k < 0)
                                 r = log_debug_errno(k, "sd-device-enumerator: Failed to scan drivers: %m");
+                }
+
+                if (match_subsystem(enumerator, "slots")) {
+                        k = enumerator_scan_dir(enumerator, "bus", "slots", "slots");
+                        if (k < 0)
+                                r = log_debug_errno(k, "sd-device-enumerator: Failed to scan slots: %m");
                 }
         }
 
