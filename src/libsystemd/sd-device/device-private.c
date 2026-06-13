@@ -433,6 +433,39 @@ void device_seal(sd_device *device) {
         device->sealed = true;
 }
 
+/* Verify and process pseudo-subsystem for a device.
+ *
+ * Returns:
+ *   Negative value if an error occurs
+ *   Positive value if device belongs to pseudo-subsystem
+ *   Zero value if device does NOT belong to this pseudo-subsystem
+ *
+ * Note: Logs errors internally, but caller should still check return value.
+ */
+static int device_verify_pseudo_subsystem(sd_device *device, const char *pseudo_subsys) {
+        int ret;
+
+        assert(device);
+        assert(pseudo_subsys);
+
+        ret = device_in_subsystem(device, pseudo_subsys);
+        if (ret < 0)
+                return log_device_debug_errno(device, ret,
+                        "sd-device: Failed to check if device is in '%s' pseudo-subsystem: %m",
+                        pseudo_subsys);
+
+        if (ret > 0) {
+                ret = device_set_pseudo_subsystem(device, pseudo_subsys);
+                if (ret < 0)
+                        return log_device_debug_errno(device, ret,
+                                "sd-device: Failed to set '%s' pseudo-subsystem: %m",
+                                pseudo_subsys);
+                return ret;
+        }
+
+        return 0;
+}
+
 static int device_verify(sd_device *device) {
         int r;
 
@@ -443,27 +476,14 @@ static int device_verify(sd_device *device) {
                                               "sd-device: Device created from strv or nulstr lacks devpath, subsystem, action or seqnum.");
 
         /* Check device's pseudo-subsytem is 'drivers' */
-        r = device_in_subsystem(device, "drivers");
-        if (r < 0)
-                return log_device_debug_errno(device, r, "sd-device: Failed to check if the device is a driver: %m");
-        if (r > 0) {
-                r = device_set_pseudo_subsystem(device, "drivers");
-                if (r < 0)
-                        return log_device_debug_errno(device, r,
-                                                      "sd-device: Failed to set driver subsystem: %m");
+        r = device_verify_pseudo_subsystem(device, "drivers");
+        if (r != 0)
                 goto done;
-        }
 
         /* Check device's pseudo-subsytem is 'slots' */
-        r = device_in_subsystem(device, "slots");
-        if (r < 0)
-                return log_device_debug_errno(device, r, "sd-device: Failed to check if the device is a slot: %m");
-        if (r > 0) {
-                r = device_set_pseudo_subsystem(device, "slots");
-                if (r < 0)
-                        return log_device_debug_errno(device, r,
-                                                      "sd-device: Failed to set slots subsystem: %m");
-        }
+        r = device_verify_pseudo_subsystem(device, "slots");
+        if (r != 0)
+                goto done;
 
 done:
         device->sealed = true;
