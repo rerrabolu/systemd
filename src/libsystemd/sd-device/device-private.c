@@ -475,17 +475,13 @@ static int device_verify(sd_device *device) {
                 return log_device_debug_errno(device, SYNTHETIC_ERRNO(EINVAL),
                                               "sd-device: Device created from strv or nulstr lacks devpath, subsystem, action or seqnum.");
 
-        /* Check device's pseudo-subsytem is 'drivers' */
-        r = device_verify_pseudo_subsystem(device, "drivers");
-        if (r != 0)
-                goto done;
+        /* Check if device belongs to 'drivers' or 'slots' pseudo-subsystem */
+        FOREACH_STRING(pseudo_subsys, "drivers", "slots") {
+                r = device_verify_pseudo_subsystem(device, pseudo_subsys);
+                if (r != 0)
+                        break;
+        }
 
-        /* Check device's pseudo-subsytem is 'slots' */
-        r = device_verify_pseudo_subsystem(device, "slots");
-        if (r != 0)
-                goto done;
-
-done:
         device->sealed = true;
 
         return 0;

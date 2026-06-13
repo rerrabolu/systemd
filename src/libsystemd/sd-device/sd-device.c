@@ -596,15 +596,16 @@ _public_ int sd_device_new_from_subsystem_sysname(
                 r = device_new_from_path_join(&device, subsystem, /* pseudo_subsystem= */ NULL, sysname, "/sys/module/", name, NULL, NULL);
                 if (r < 0)
                         return r;
-
-        } else if (streq(subsystem, "drivers")) {
-                r = device_new_from_pseudo_subsystem(&device, subsystem, name);
-                if (r < 0)
-                        return r;
-        } else if (streq(subsystem, "slots")) {
-                r = device_new_from_pseudo_subsystem(&device, subsystem, name);
-                if (r < 0)
-                        return r;
+        } else {
+                /* Check if subsystem is a pseudo-subsystem (drivers or slots) */
+                FOREACH_STRING(pseudo_subsys, "drivers", "slots") {
+                        if (streq(subsystem, pseudo_subsys)) {
+                                r = device_new_from_pseudo_subsystem(&device, subsystem, name);
+                                if (r < 0)
+                                        return r;
+                                break;
+                        }
+                }
         }
 
         r = device_new_from_path_join(&device, subsystem, /* pseudo_subsystem= */ NULL, sysname, "/sys/bus/", subsystem, "/devices/", name);
@@ -973,15 +974,12 @@ int device_read_uevent_file(sd_device *device) {
                                                major, strna(minor));
         }
 
-        /* Check if device belongs to drivers subsystem */
-        r = device_process_pseudo_subsystem(device, "drivers");
-        if (r != 0)
-                goto done;
-
-        /* Check if device belongs to slots subsystem */
-        r = device_process_pseudo_subsystem(device, "slots");
-        if (r != 0)
-                goto done;
+        /* Check if device belongs to 'drivers' or 'slots' pseudo-subsystem */
+        FOREACH_STRING(pseudo_subsys, "drivers", "slots") {
+                r = device_process_pseudo_subsystem(device, pseudo_subsys);
+                if (r != 0)
+                        goto done;
+        }
 
 done:
         return 0;
