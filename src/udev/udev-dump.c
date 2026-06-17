@@ -71,8 +71,8 @@ static int dump_event_json(UdevEvent *event, sd_json_format_flags_t flags, FILE 
                         return r;
         }
 
-        if (sd_device_get_driver_subsystem(dev, &str) >= 0) {
-                r = sd_json_variant_set_field_string(&v, "driverSubsystem", str);
+        if (sd_device_get_parent_subsystem(dev, &str) >= 0) {
+                r = sd_json_variant_set_field_string(&v, "parentSubsystem", str);
                 if (r < 0)
                         return r;
         }
@@ -333,12 +333,12 @@ int dump_event(UdevEvent *event, sd_json_format_flags_t flags, FILE *f) {
                 fprintf(f, "%sDevice ID:%s\n  %s\n", ansi_highlight(), ansi_normal(), str);
 
         if (sd_device_get_subsystem(dev, &subsys) >= 0) {
-                const char *driver_subsys = NULL;
-                (void) sd_device_get_driver_subsystem(dev, &driver_subsys);
+                const char *parent_subsys = NULL;
+                (void) sd_device_get_parent_subsystem(dev, &parent_subsys);
                 fprintf(f, "%sSubsystem:%s\n  %s%s%s%s\n", ansi_highlight(), ansi_normal(), subsys,
-                        driver_subsys ? " (" : "",
-                        strempty(driver_subsys),
-                        driver_subsys ? ")" : "");
+                        parent_subsys ? " (" : "",
+                        strempty(parent_subsys),
+                        parent_subsys ? ")" : "");
         }
 
         if (sd_device_get_devtype(dev, &str) >= 0)
