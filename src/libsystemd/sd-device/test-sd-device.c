@@ -160,7 +160,7 @@ static void test_sd_device_one(sd_device *d) {
         else {
                 const char *name, *id;
 
-                if (streq(subsystem, "drivers")) {
+                if (streq(subsystem, "drivers") || streq(subsystem, "slots")) {
                         const char *parent_subsys;
                         ASSERT_OK(sd_device_get_parent_subsystem(d, &parent_subsys));
                         name = strjoina(parent_subsys, ":", sysname);
