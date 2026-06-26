@@ -8,6 +8,15 @@
 
 #define LATEST_UDEV_DATABASE_VERSION 1
 
+/* Named constants for valid driver_subsystem values */
+#define DRIVER_SUBSYSTEM_DRIVERS "drivers"
+
+/* Subsystem names that embed the driver subsystem
+ * in the devpath. New entries can be appended before
+ * the NULL terminator.
+ */
+extern const char * const driver_subsystem_names[];
+
 struct sd_device {
         unsigned n_ref;
 
@@ -23,7 +32,7 @@ struct sd_device {
 
         /* basic kernel properties */
         char *subsystem;
-        char *driver_subsystem; /* only set for the 'drivers' subsystem */
+        char *driver_subsystem; /* For selected subsystems (e.g., "drivers", etc) */
         char *driver;
         char *devtype;
 
@@ -118,6 +127,6 @@ int device_set_devtype(sd_device *device, const char *devtype);
 int device_set_devnum(sd_device *device, const char *major, const char *minor);
 int device_set_subsystem(sd_device *device, const char *subsystem);
 int device_set_diskseq(sd_device *device, const char *str);
-int device_set_drivers_subsystem(sd_device *device);
+int device_set_drivers_subsystem(sd_device *device, const char *driver_subsystem);
 int device_set_driver(sd_device *device, const char *driver);
 int device_set_usec_initialized(sd_device *device, usec_t when);
