@@ -29,6 +29,7 @@
 #include "tmpfile-util.h"
 #include "udev-util.h"
 #include "virt.h"
+#include "strv.h"
 
 TEST(mdio_bus) {
         int r;
@@ -159,8 +160,15 @@ static void test_sd_device_one(sd_device *d) {
                 ASSERT_ERROR(r, ENOENT);
         else {
                 const char *name, *id;
+                bool is_driver_subsystem = false;
 
-                if (streq(subsystem, "drivers")) {
+                STRV_FOREACH(elem, driver_subsystem_names)
+                        if (streq(subsystem, *elem)) {
+                                is_driver_subsystem = true;
+                                break;
+                        }
+
+                if (is_driver_subsystem) {
                         const char *driver_subsystem;
                         ASSERT_OK(sd_device_get_driver_subsystem(d, &driver_subsystem));
                         name = strjoina(driver_subsystem, ":", sysname);

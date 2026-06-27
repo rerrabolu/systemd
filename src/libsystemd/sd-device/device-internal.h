@@ -9,7 +9,8 @@
 #define LATEST_UDEV_DATABASE_VERSION 1
 
 /* Named constants for valid driver_subsystem values */
-#define DRIVER_SUBSYSTEM_DRIVERS "drivers"
+#define DRIVER_SUBSYSTEM_SLOTS          "slots"
+#define DRIVER_SUBSYSTEM_DRIVERS        "drivers"
 
 /* Subsystem names that embed the driver subsystem
  * in the devpath. New entries can be appended before
@@ -32,7 +33,7 @@ struct sd_device {
 
         /* basic kernel properties */
         char *subsystem;
-        char *driver_subsystem; /* For selected subsystems (e.g., "drivers", etc) */
+        char *driver_subsystem; /* For selected subsystems (e.g., "drivers", "slots",etc) */
         char *driver;
         char *devtype;
 
