@@ -8,6 +8,15 @@
 
 #define LATEST_UDEV_DATABASE_VERSION 1
 
+/* Named constants for valid driver_subsystem values */
+#define DRIVER_SUBSYSTEM_DRIVERS "drivers"
+
+/* Subsystem names that embed the driver subsystem
+ * in the devpath. New entries can be appended before
+ * the NULL terminator.
+ */
+extern const char * const driver_subsystem_names[];
+
 struct sd_device {
         unsigned n_ref;
 
