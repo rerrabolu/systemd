@@ -27,7 +27,7 @@ struct sd_device {
 
         /* basic kernel properties */
         char *subsystem;
-        char *driver_subsystem; /* For selected subsystems (e.g., "drivers", etc) */
+        char *driver_subsystem; /* For selected subsystems (e.g., "drivers", "slots", etc) */
         char *driver;
         char *devtype;
 
@@ -122,6 +122,7 @@ int device_set_devtype(sd_device *device, const char *devtype);
 int device_set_devnum(sd_device *device, const char *major, const char *minor);
 int device_set_subsystem(sd_device *device, const char *subsystem);
 int device_set_diskseq(sd_device *device, const char *str);
+int device_set_slots_subsystem(sd_device *device);
 int device_set_drivers_subsystem(sd_device *device);
 int device_set_pseudo_subsystem(sd_device *device, const char *subsystem);
 int device_set_driver(sd_device *device, const char *driver);
