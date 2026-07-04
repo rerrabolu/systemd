@@ -35,6 +35,7 @@
 /* List of valid pseudo subsystems */
 const char * const pseudo_subsystems[] = {
         "drivers",
+        "slots",
         NULL
 };
 
@@ -515,6 +516,8 @@ static int device_new_from_path_join(
  * Examples:
  *   - "pci:drivers"    /sys/bus/pci/drivers/ (the drivers directory)
  *   - "pci:e1000e"     /sys/bus/pci/drivers/e1000e/ (specific driver)
+ *   - "pci:slots"      /sys/bus/pci/slots/ (the slots directory)
+ *   - "pci:1123"       /sys/bus/pci/slots/1123/ (PCI slot 1123)
  *
  * The function:
  *   1. Parses the name to extract
@@ -527,8 +530,6 @@ static int device_new_from_path_join(
  *
  * Returns:
  *   0 on success (device found and created)
- *   -ENOENT if the format is invalid (no ':' separator or nothing after ':')
- *   -ENOENT if the device path doesn't exist in sysfs
  *   Other negative errno on error
  */
 static int device_new_from_subsystem(
@@ -1297,6 +1298,10 @@ int device_set_subsystem(sd_device *device, const char *subsystem) {
         return free_and_replace(device->subsystem, s);
 }
 
+int device_set_slots_subsystem(sd_device *device) {
+        return device_set_pseudo_subsystem(device, "slots");
+}
+
 int device_set_drivers_subsystem(sd_device *device) {
         return device_set_pseudo_subsystem(device, "drivers");
 }
@@ -1366,6 +1371,8 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
                 if (r >= 0)
                         r = device_set_subsystem(device, subsystem);
                 /* use implicit names */
+                else if (strstr(device->devpath, "/slots/") || endswith(device->devpath, "/slots"))
+                        r = device_set_slots_subsystem(device);
                 else if (!isempty(path_startswith(device->devpath, "/module/")))
                         r = device_set_subsystem(device, "module");
                 else if (strstr(device->devpath, "/drivers/") || endswith(device->devpath, "/drivers"))
