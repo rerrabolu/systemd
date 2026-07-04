@@ -450,8 +450,20 @@ static int device_verify(sd_device *device) {
                 if (r < 0)
                         return log_device_debug_errno(device, r,
                                                       "sd-device: Failed to set driver subsystem: %m");
+                goto seal;
         }
 
+        r = device_in_subsystem(device, "slots");
+        if (r < 0)
+                return log_device_debug_errno(device, r, "sd-device: Failed to check if the device is a slot: %m");
+        if (r > 0) {
+                r = device_set_slots_subsystem(device);
+                if (r < 0)
+                        return log_device_debug_errno(device, r,
+                                                      "sd-device: Failed to set driver subsystem: %m");
+        }
+
+seal:
         device->sealed = true;
 
         return 0;
@@ -677,7 +689,8 @@ int device_clone_with_db(sd_device *device, sd_device **ret) {
                 if (r < 0)
                         return r;
 
-                if (streq(key, "SUBSYSTEM") && streq(val, "drivers")) {
+                if (streq(key, "SUBSYSTEM") &&
+                    (streq(val, "drivers") || streq(val, "slots"))) {
                         r = free_and_strdup(&dest->driver_subsystem, device->driver_subsystem);
                         if (r < 0)
                                 return r;
