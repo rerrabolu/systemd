@@ -32,6 +32,12 @@
 #include "strv.h"
 #include "time-util.h"
 
+/* List of valid pseudo subsystems */
+const char * const pseudo_subsystems[] = {
+        "drivers",
+        NULL
+};
+
 int device_new_aux(sd_device **ret) {
         sd_device *device;
 
@@ -493,6 +499,83 @@ static int device_new_from_path_join(
         return 1; /* Fortunately, they are consistent. */
 }
 
+/* Create a device object from path specification.
+ *
+ * Parameters:
+ *   device: Output parameter for the created device object
+ *   subsystem: The subsystem's name
+ *   name: The device specification in "bus_name:item_name" format
+ *
+ * The 'name' parameter must be in the format "bus_name:item_name"
+ *   - bus_name: A bus name that exists in /sys/bus/
+ *               (e.g., "pci", "usb", "platform")
+ *   - item_name: Either the subsystem directory itself or a
+ *                specific item within it
+ *
+ * Examples:
+ *   - "pci:drivers"    /sys/bus/pci/drivers/ (the drivers directory)
+ *   - "pci:e1000e"     /sys/bus/pci/drivers/e1000e/ (specific driver)
+ *
+ * The function:
+ *   1. Parses the name to extract
+ *      - bus_name (before ':' )
+ *      - item_name (after ':')
+ *   2. Determines if item_name is subsystem directory or a specific item
+ *   3. Constructs the sysfs path:
+ *      - /sys/bus/{bus_name}/{subsystem}/ if item_name equals subsystem
+ *      - /sys/bus/{bus_name}/{subsystem}/{item_name}/ otherwise
+ *
+ * Returns:
+ *   0 on success (device found and created)
+ *   -ENOENT if the format is invalid (no ':' separator or nothing after ':')
+ *   -ENOENT if the device path doesn't exist in sysfs
+ *   Other negative errno on error
+ */
+static int device_new_from_subsystem(
+                sd_device **device,
+                const char *subsystem,
+                const char *name) {
+
+        const char *subdir, *sep;
+        const char *bus_name;
+        int r;
+
+        assert(device);
+        assert(subsystem);
+        assert(name);
+
+        /* Require ":" separator and something non-empty after it */
+        sep = strchr(name, ':');
+        if (!sep || sep[1] == '\0')
+                return -EINVAL;
+
+        /* Extract the bus name (before ':') - must be a bus in /sys/bus/ */
+        bus_name = memdupa_suffix0(name, sep - name);
+
+        /* Move past ':' to the item name */
+        sep++;
+
+        /* Subdirectory component under /sys/bus/{bus_name}/:
+         *   "/drivers"   — when item_name refers to the directory itself
+         *   "/drivers/"  — when item_name refers to a specific entry within it
+         */
+        bool is_dir = streq(sep, subsystem);
+        subdir = (is_dir) ?
+                        strjoina("/", subsystem) :
+                        strjoina("/", subsystem, "/");
+
+        /* item_name is referring to the subsystem directory itself */
+        if (is_dir)
+                r = device_new_from_path_join(device, subsystem, bus_name, sep,
+                                "/sys/bus/", bus_name, subdir, NULL);
+        /* item_name is referring to a specific item in subsystem directory */
+        else
+                r = device_new_from_path_join(device, subsystem, bus_name, sep,
+                                "/sys/bus/", bus_name, subdir, sep);
+
+        return r;
+}
+
 _public_ int sd_device_new_from_subsystem_sysname(
                 sd_device **ret,
                 const char *subsystem,
@@ -527,21 +610,16 @@ _public_ int sd_device_new_from_subsystem_sysname(
                 if (r < 0)
                         return r;
 
-        } else if (streq(subsystem, "drivers")) {
-                const char *sep;
+        } else {
 
-                sep = strchr(name, ':');
-                if (sep && sep[1] != '\0') { /* Require ":" and something non-empty after that. */
-
-                        const char *subsys = memdupa_suffix0(name, sep - name);
-                        sep++;
-
-                        if (streq(sep, "drivers")) /* If the sysname is "drivers", then it's the drivers directory itself that is meant. */
-                                r = device_new_from_path_join(&device, subsystem, subsys, "drivers", "/sys/bus/", subsys, "/drivers", NULL);
-                        else
-                                r = device_new_from_path_join(&device, subsystem, subsys, sysname + (sep - name), "/sys/bus/", subsys, "/drivers/", sep);
-                        if (r < 0)
-                                return r;
+               /* Build device if subsystem is of pseudo subsystem kind */
+               STRV_FOREACH(elem, pseudo_subsystems) {
+                        if (streq(subsystem, *elem)) {
+                                r = device_new_from_subsystem(&device, subsystem, name);
+                                if (r < 0)
+                                        return r;
+                                break;
+                        }
                 }
         }
 
@@ -875,14 +953,22 @@ int device_read_uevent_file(sd_device *device) {
                                                major, strna(minor));
         }
 
-        r = device_in_subsystem(device, "drivers");
-        if (r < 0)
-                log_device_debug_errno(device, r, "Failed to check if the device is a driver, ignoring: %m");
-        if (r > 0) {
-                r = device_set_drivers_subsystem(device);
+        STRV_FOREACH(name, pseudo_subsystems) {
+                r = device_in_subsystem(device, *name);
+                if (r < 0) {
+                        log_device_debug_errno(device, r,
+                                               "sd-device: Failed to check if the device is a %s subsystem, ignoring: %m",
+                                               *name);
+                        return 0;
+                }
+                if (r == 0)
+                        continue;
+                r = device_set_pseudo_subsystem(device, *name);
                 if (r < 0)
                         log_device_debug_errno(device, r,
-                                               "sd-device: Failed to set driver subsystem, ignoring: %m");
+                                               "sd-device: Failed to set %s subsystem, ignoring: %m",
+                                               *name);
+                break;
         }
 
         return 0;
@@ -1307,9 +1393,15 @@ _public_ int sd_device_get_driver_subsystem(sd_device *device, const char **ret)
 
         assert_return(device, -EINVAL);
 
-        r = device_in_subsystem(device, "drivers");
-        if (r < 0)
-                return r;
+        STRV_FOREACH(name, pseudo_subsystems) {
+                r = device_in_subsystem(device, *name);
+                if (r < 0)
+                        return r;
+                if (r == 0)
+                        continue;
+                if (r > 0)
+                        break;
+        }
         if (r == 0)
                 return -ENOENT;
 
@@ -1759,6 +1851,38 @@ static int handle_db_line(sd_device *device, char key, const char *value) {
         }
 }
 
+static int device_id_for_subsystem(
+                sd_device *device,
+                const char *subsystem,
+                const char *sysname,
+                char **ret_id) {
+
+        int r;
+
+        assert(device);
+        assert(subsystem);
+        assert(sysname);
+        assert(ret_id);
+
+        /* Query if subsystem is pseudo subsystem kind */
+        r = device_in_subsystem(device, subsystem);
+        if (r < 0)
+                return r;
+
+        /* Subsystem is not pseudo subsystem kind */
+        if (r == 0)
+                return 0;
+
+        /* Build ID: +{subsystem}:{device->driver_subsystem}:{sysname} */
+        *ret_id = strjoin("+", subsystem, ":",
+                         ASSERT_PTR(device->driver_subsystem), ":", sysname);
+        if (!*ret_id)
+                return -ENOMEM;
+
+        /* ID created */
+        return 1;
+}
+
 _public_ int sd_device_get_device_id(sd_device *device, const char **ret) {
         assert_return(device, -EINVAL);
 
@@ -1793,21 +1917,23 @@ _public_ int sd_device_get_device_id(sd_device *device, const char **ret) {
                         if (r == O_DIRECTORY)
                                 return -EINVAL;
 
-                        r = device_in_subsystem(device, "drivers");
-                        if (r < 0)
-                                return r;
-                        if (r > 0)
-                                /* the 'drivers' pseudo-subsystem is special, and needs the real
-                                 * subsystem encoded as well */
-                                id = strjoin("+drivers:", ASSERT_PTR(device->driver_subsystem), ":", sysname);
-                        else {
-                                const char *subsystem;
-                                r = sd_device_get_subsystem(device, &subsystem);
+                        /* Build device's ID if subsystem is of pseudo subsystem kind */
+                        STRV_FOREACH(elem, pseudo_subsystems) {
+                                r = device_id_for_subsystem(device, *elem, sysname, &id);
                                 if (r < 0)
                                         return r;
-
-                                id = strjoin("+", subsystem, ":", sysname);
+                                if (r > 0)
+                                        goto handle_id;
                         }
+
+                        const char *subsystem;
+                        r = sd_device_get_subsystem(device, &subsystem);
+                        if (r < 0)
+                                return r;
+                        id = strjoin("+", subsystem, ":", sysname);
+
+                        handle_id:
+
                         if (!id)
                                 return -ENOMEM;
                 }
