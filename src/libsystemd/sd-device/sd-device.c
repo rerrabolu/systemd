@@ -1212,38 +1212,52 @@ int device_set_subsystem(sd_device *device, const char *subsystem) {
 }
 
 int device_set_drivers_subsystem(sd_device *device) {
-        _cleanup_free_ char *subsystem = NULL;
-        const char *devpath, *drivers, *p;
+        return device_set_pseudo_subsystem(device, "drivers");
+}
+
+int device_set_pseudo_subsystem(sd_device *device, const char *subsystem) {
+        _cleanup_free_ char *driver_subsystem = NULL;
+        _cleanup_free_ char *pattern = NULL;
+        const char *devpath, *found, *p;
         int r;
 
         assert(device);
+        assert(subsystem);
 
         r = sd_device_get_devpath(device, &devpath);
         if (r < 0)
                 return r;
 
-        drivers = strstr(devpath, "/drivers/");
-        if (!drivers)
-                drivers = endswith(devpath, "/drivers");
-        if (!drivers)
+        pattern = strjoin("/", subsystem, "/");
+        if (!pattern)
+                return -ENOMEM;
+
+        /* Search patterns: "/<subsystem>/" and "/subsystem>" */
+        found = strstr(devpath, pattern);
+        if (!found) {
+                pattern[strlen(pattern) - 1] = '\0';
+                found = endswith(devpath, pattern);
+                pattern[strlen(pattern) - 1] = '/';
+        }
+        if (!found)
                 return -EINVAL;
 
-        /* Find the path component immediately before the "/drivers/" string */
-        r = path_find_last_component(devpath, /* accept_dot_dot= */ false, &drivers, &p);
+        /* Find the path component immediately before the "/<subsystem>/" string */
+        r = path_find_last_component(devpath, /* accept_dot_dot= */ false, &found, &p);
         if (r < 0)
                 return r;
         if (r == 0)
                 return -EINVAL;
 
-        subsystem = strndup(p, r);
-        if (!subsystem)
+        driver_subsystem = strndup(p, r);
+        if (!driver_subsystem)
                 return -ENOMEM;
 
-        r = device_set_subsystem(device, "drivers");
+        r = device_set_subsystem(device, subsystem);
         if (r < 0)
                 return r;
 
-        return free_and_replace(device->driver_subsystem, subsystem);
+        return free_and_replace(device->driver_subsystem, driver_subsystem);
 }
 
 _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
