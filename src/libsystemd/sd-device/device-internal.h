@@ -9,6 +9,9 @@
 #define OLDEST_UDEV_DATABASE_VERSION 1
 #define LATEST_UDEV_DATABASE_VERSION 1
 
+/* Subsystems that embed driver subsystem in the devpath */
+extern const char * const pseudo_subsystems[];
+
 struct sd_device {
         unsigned n_ref;
 
