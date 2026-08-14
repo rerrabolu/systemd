@@ -63,7 +63,7 @@ static sd_device* device_free(sd_device *device) {
         free(device->devtype);
         free(device->devname);
         free(device->subsystem);
-        free(device->driver_subsystem);
+        free(device->connected_bus);
         free(device->driver);
         free(device->device_id);
         free(device->properties_strv);
@@ -1248,7 +1248,7 @@ int device_set_drivers_subsystem(sd_device *device) {
         if (r < 0)
                 return r;
 
-        return free_and_replace(device->driver_subsystem, subsystem);
+        return free_and_replace(device->connected_bus, subsystem);
 }
 
 _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
@@ -1304,10 +1304,10 @@ _public_ int sd_device_get_driver_subsystem(sd_device *device, const char **ret)
         if (r == 0)
                 return -ENOENT;
 
-        assert(device->driver_subsystem);
+        assert(device->connected_bus);
 
         if (ret)
-                *ret = device->driver_subsystem;
+                *ret = device->connected_bus;
 
         return 0;
 }
@@ -1790,7 +1790,7 @@ _public_ int sd_device_get_device_id(sd_device *device, const char **ret) {
                         if (r > 0)
                                 /* the 'drivers' pseudo-subsystem is special, and needs the real
                                  * subsystem encoded as well */
-                                id = strjoin("+drivers:", ASSERT_PTR(device->driver_subsystem), ":", sysname);
+                                id = strjoin("+drivers:", ASSERT_PTR(device->connected_bus), ":", sysname);
                         else {
                                 const char *subsystem;
                                 r = sd_device_get_subsystem(device, &subsystem);
