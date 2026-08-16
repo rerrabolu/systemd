@@ -884,7 +884,7 @@ int device_read_uevent_file(sd_device *device) {
         if (r < 0)
                 log_device_debug_errno(device, r, "Failed to check if the device is a driver, ignoring: %m");
         if (r > 0) {
-                r = device_set_drivers_subsystem(device);
+                r = device_set_pseudo_subsystem(device);
                 if (r < 0)
                         log_device_debug_errno(device, r,
                                                "sd-device: Failed to set driver subsystem, ignoring: %m");
@@ -1216,7 +1216,7 @@ int device_set_subsystem(sd_device *device, const char *subsystem) {
         return free_and_replace(device->subsystem, s);
 }
 
-int device_set_drivers_subsystem(sd_device *device) {
+int device_set_pseudo_subsystem(sd_device *device) {
         _cleanup_free_ char *subsystem = NULL;
         const char *devpath, *drivers, *p;
         int r;
@@ -1274,7 +1274,7 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
                 else if (!isempty(path_startswith(device->devpath, "/module/")))
                         r = device_set_subsystem(device, "module");
                 else if (strstr(device->devpath, "/drivers/") || endswith(device->devpath, "/drivers"))
-                        r = device_set_drivers_subsystem(device);
+                        r = device_set_pseudo_subsystem(device);
                 else if (!isempty(PATH_STARTSWITH_SET(device->devpath, "/class/", "/bus/")))
                         r = device_set_subsystem(device, "subsystem");
                 else
