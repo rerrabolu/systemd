@@ -689,7 +689,7 @@ int device_clone_with_db(sd_device *device, sd_device **ret) {
                         return r;
 
                 if (streq(key, "SUBSYSTEM") && streq(val, "drivers")) {
-                        r = free_and_strdup(&dest->driver_subsystem, device->driver_subsystem);
+                        r = free_and_strdup(&dest->pseudo_subsystem, device->pseudo_subsystem);
                         if (r < 0)
                                 return r;
                 }
