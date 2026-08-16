@@ -161,9 +161,9 @@ static void test_sd_device_one(sd_device *d) {
                 const char *name, *id;
 
                 if (streq(subsystem, "drivers")) {
-                        const char *driver_subsystem;
-                        ASSERT_OK(sd_device_get_driver_subsystem(d, &driver_subsystem));
-                        name = strjoina(driver_subsystem, ":", sysname);
+                        const char *connected_bus;
+                        ASSERT_OK(sd_device_get_driver_subsystem(d, &connected_bus));
+                        name = strjoina(connected_bus, ":", sysname);
                 } else
                         name = sysname;
 
