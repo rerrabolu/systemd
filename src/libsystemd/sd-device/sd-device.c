@@ -493,6 +493,46 @@ static int device_new_from_path_join(
         return 1; /* Fortunately, they are consistent. */
 }
 
+static int device_new_from_subsystem(
+                sd_device **device,
+                const char *pseudo_subsystem,
+                const char *sysname,
+                const char *name) {
+
+        const char *pseudo_subsystem_dir;
+        const char *sep, *subsystem_bus;
+
+        assert(device);
+        assert(pseudo_subsystem);
+        assert(sysname);
+        assert(name);
+
+        /* Require ":" and something non-empty after that. */
+        sep = strchr(name, ':');
+        if (!sep || sep[1] == '\0')
+                return 0;
+
+        subsystem_bus = memdupa_suffix0(name, sep - name);
+        sep++;
+
+        /* If the name is pseudo_subsystem, then it's the pseudo_subsystem
+         * directory itself that is meant.
+         */
+        if (streq(sep, pseudo_subsystem)) {
+                pseudo_subsystem_dir = strjoina("/", pseudo_subsystem);
+                return device_new_from_path_join(
+                                device, pseudo_subsystem,
+                                subsystem_bus, sep, "/sys/bus/", subsystem_bus,
+                                pseudo_subsystem_dir, /* d= */ NULL);
+        }
+
+        pseudo_subsystem_dir = strjoina("/", pseudo_subsystem, "/");
+        return device_new_from_path_join(
+                        device, pseudo_subsystem, subsystem_bus,
+                        sysname + (sep - name), "/sys/bus/", subsystem_bus,
+                        pseudo_subsystem_dir, sep);
+}
+
 _public_ int sd_device_new_from_subsystem_sysname(
                 sd_device **ret,
                 const char *subsystem,
@@ -528,21 +568,9 @@ _public_ int sd_device_new_from_subsystem_sysname(
                         return r;
 
         } else if (streq(subsystem, "drivers")) {
-                const char *sep;
-
-                sep = strchr(name, ':');
-                if (sep && sep[1] != '\0') { /* Require ":" and something non-empty after that. */
-
-                        const char *subsys = memdupa_suffix0(name, sep - name);
-                        sep++;
-
-                        if (streq(sep, "drivers")) /* If the sysname is "drivers", then it's the drivers directory itself that is meant. */
-                                r = device_new_from_path_join(&device, subsystem, subsys, "drivers", "/sys/bus/", subsys, "/drivers", NULL);
-                        else
-                                r = device_new_from_path_join(&device, subsystem, subsys, sysname + (sep - name), "/sys/bus/", subsys, "/drivers/", sep);
-                        if (r < 0)
-                                return r;
-                }
+                r = device_new_from_subsystem(&device, subsystem, sysname, name);
+                if (r < 0)
+                        return r;
         }
 
         r = device_new_from_path_join(&device, subsystem, /* subsystem_bus= */ NULL, sysname, "/sys/bus/", subsystem, "/devices/", name);
