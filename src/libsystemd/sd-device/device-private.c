@@ -446,7 +446,7 @@ static int device_verify(sd_device *device) {
         if (r < 0)
                 return log_device_debug_errno(device, r, "sd-device: Failed to check if the device is a driver: %m");
         if (r > 0) {
-                r = device_set_pseudo_subsystem(device);
+                r = device_set_pseudo_subsystem(device, "drivers");
                 if (r < 0)
                         return log_device_debug_errno(device, r,
                                                       "sd-device: Failed to set driver subsystem: %m");
