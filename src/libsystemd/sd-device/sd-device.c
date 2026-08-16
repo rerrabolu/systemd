@@ -895,7 +895,7 @@ int device_read_uevent_file(sd_device *device) {
         if (r < 0)
                 log_device_debug_errno(device, r, "Failed to check if the device is a driver, ignoring: %m");
         if (r > 0) {
-                r = device_set_pseudo_subsystem(device);
+                r = device_set_pseudo_subsystem(device, "drivers");
                 if (r < 0)
                         log_device_debug_errno(device, r,
                                                "sd-device: Failed to set driver subsystem, ignoring: %m");
@@ -1227,39 +1227,46 @@ int device_set_subsystem(sd_device *device, const char *subsystem) {
         return free_and_replace(device->subsystem, s);
 }
 
-int device_set_pseudo_subsystem(sd_device *device) {
-        _cleanup_free_ char *subsystem = NULL;
-        const char *devpath, *drivers, *p;
+int device_set_pseudo_subsystem(sd_device *device, const char *pseudo_subsystem) {
+        _cleanup_free_ char *host_subsystem = NULL;
+        _cleanup_free_ char *pseudo_path = NULL;
+        const char *devpath, *pseudo_start, *host_start;
         int r;
 
         assert(device);
+        assert(pseudo_subsystem);
 
         r = sd_device_get_devpath(device, &devpath);
         if (r < 0)
                 return r;
 
-        drivers = strstr(devpath, "/drivers/");
-        if (!drivers)
-                drivers = endswith(devpath, "/drivers");
-        if (!drivers)
+        pseudo_path = strjoin("/", pseudo_subsystem, "/");
+        if (!pseudo_path)
+                return -ENOMEM;
+
+        /* Search for "/<pseudo_subsystem>/" within devpath,
+         * or "/<pseudo_subsystem>" as a suffix
+         */
+        pseudo_start = strstr(devpath, pseudo_path) ?: endswith(devpath, strjoina("/", pseudo_subsystem));
+        if (!pseudo_start)
                 return -EINVAL;
 
-        /* Find the path component immediately before the "/drivers/" string */
-        r = path_find_last_component(devpath, /* accept_dot_dot= */ false, &drivers, &p);
+        /* Find the path component immediately before the "/<pseudo_subsystem>/" string */
+        r = path_find_last_component(devpath, /* accept_dot_dot= */ false, &pseudo_start, &host_start);
         if (r < 0)
                 return r;
         if (r == 0)
                 return -EINVAL;
 
-        subsystem = strndup(p, r);
-        if (!subsystem)
+        host_subsystem = strndup(host_start, r);
+        if (!host_subsystem)
                 return -ENOMEM;
 
-        r = device_set_subsystem(device, "drivers");
+        r = device_set_subsystem(device, pseudo_subsystem);
         if (r < 0)
                 return r;
 
-        return free_and_replace(device->host_subsystem, subsystem);
+        return free_and_replace(device->host_subsystem, host_subsystem);
 }
 
 _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
@@ -1285,7 +1292,7 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
                 else if (!isempty(path_startswith(device->devpath, "/module/")))
                         r = device_set_subsystem(device, "module");
                 else if (strstr(device->devpath, "/drivers/") || endswith(device->devpath, "/drivers"))
-                        r = device_set_pseudo_subsystem(device);
+                        r = device_set_pseudo_subsystem(device, "drivers");
                 else if (!isempty(PATH_STARTSWITH_SET(device->devpath, "/class/", "/bus/")))
                         r = device_set_subsystem(device, "subsystem");
                 else
