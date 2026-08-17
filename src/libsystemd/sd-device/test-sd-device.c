@@ -25,6 +25,7 @@
 #include "set.h"
 #include "stat-util.h"
 #include "string-util.h"
+#include "strv.h"
 #include "tests.h"
 #include "tmpfile-util.h"
 #include "udev-util.h"
@@ -160,7 +161,7 @@ static void test_sd_device_one(sd_device *d) {
         else {
                 const char *name, *id;
 
-                if (streq(subsystem, "drivers")) {
+                if (strv_contains((char **)pseudo_subsystems, subsystem)) {
                         const char *connected_bus;
                         ASSERT_OK(sd_device_get_driver_subsystem(d, &connected_bus));
                         name = strjoina(connected_bus, ":", sysname);

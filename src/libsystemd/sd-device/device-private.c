@@ -442,14 +442,18 @@ static int device_verify(sd_device *device) {
                 return log_device_debug_errno(device, SYNTHETIC_ERRNO(EINVAL),
                                               "sd-device: Device created from strv or nulstr lacks devpath, subsystem, action or seqnum.");
 
-        r = device_in_subsystem(device, "drivers");
-        if (r < 0)
-                return log_device_debug_errno(device, r, "sd-device: Failed to check if the device is a driver: %m");
-        if (r > 0) {
-                r = device_set_pseudo_subsystem(device, "drivers");
+        STRV_FOREACH(name, pseudo_subsystems) {
+                r = device_in_subsystem(device, *name);
+                if (r == 0)
+                        continue;
                 if (r < 0)
                         return log_device_debug_errno(device, r,
-                                                      "sd-device: Failed to set driver subsystem: %m");
+                                                      "sd-device: Failed to check if device is in subsystem %s: %m", *name);
+                r = device_set_pseudo_subsystem(device, *name);
+                if (r < 0)
+                        return log_device_debug_errno(device, r,
+                                                      "sd-device: Failed to set pseudo subsystem %s: %m", *name);
+                break;
         }
 
         device->sealed = true;
@@ -677,7 +681,7 @@ int device_clone_with_db(sd_device *device, sd_device **ret) {
                 if (r < 0)
                         return r;
 
-                if (streq(key, "SUBSYSTEM") && streq(val, "drivers")) {
+                if (streq(key, "SUBSYSTEM") && strv_contains((char **)pseudo_subsystems, val)) {
                         r = free_and_strdup(&dest->connected_bus, device->connected_bus);
                         if (r < 0)
                                 return r;
