@@ -9,6 +9,14 @@
 #define OLDEST_UDEV_DATABASE_VERSION 1
 #define LATEST_UDEV_DATABASE_VERSION 1
 
+/* List of pseudo-subsystems recognised by sd-device.
+ *   "drivers" — driver entries under /sys/bus/<bus>/drivers/
+ *
+ * Each entry must be a valid sysfs subsystem name. The
+ * array is NULL-terminated for use with STRV_FOREACH.
+ */
+extern const char * const pseudo_subsystems[];
+
 struct sd_device {
         unsigned n_ref;
 
