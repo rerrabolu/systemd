@@ -11,6 +11,7 @@
 
 /* List of pseudo-subsystems recognised by sd-device.
  *   "drivers" — driver entries under /sys/bus/<bus>/drivers/
+ *   "slots"   — slot entries under /sys/bus/<bus>/slots/
  *
  * Each entry must be a valid sysfs subsystem name. The
  * array is NULL-terminated for use with STRV_FOREACH.
