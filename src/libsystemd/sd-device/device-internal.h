@@ -24,7 +24,7 @@ struct sd_device {
 
         /* basic kernel properties */
         char *subsystem;
-        char *driver_subsystem; /* only set for the 'drivers' subsystem */
+        char *subsystem_bus; /* Set for pseudo-subsystems, currently just 'drivers'. */
         char *driver;
         char *devtype;
 
