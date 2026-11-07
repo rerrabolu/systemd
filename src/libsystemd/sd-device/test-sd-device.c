@@ -171,7 +171,7 @@ static void test_sd_device_one(sd_device *d) {
 
                 if (strv_contains((char**) pseudo_subsystems, subsystem)) {
                         const char *subsystem_bus;
-                        ASSERT_OK(sd_device_get_driver_subsystem(d, &subsystem_bus));
+                        ASSERT_OK(device_get_subsystem_bus(d, subsystem, &subsystem_bus));
                         name = strjoina(subsystem_bus, ":", sysname);
                 } else
                         name = sysname;
