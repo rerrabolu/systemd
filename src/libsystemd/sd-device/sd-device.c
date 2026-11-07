@@ -452,7 +452,8 @@ static int device_new_from_path_join(
                 return r;
 
         const char *new_subsystem_bus = NULL;
-        (void) sd_device_get_driver_subsystem(new_device, &new_subsystem_bus);
+        if (subsystem && strv_contains((char**) pseudo_subsystems, subsystem))
+                (void) device_get_subsystem_bus(new_device, subsystem, &new_subsystem_bus);
 
         if (!streq_ptr(subsystem_bus, new_subsystem_bus))
                 return 0;
@@ -1348,12 +1349,17 @@ _public_ int sd_device_get_subsystem(sd_device *device, const char **ret) {
         return 0;
 }
 
-_public_ int sd_device_get_driver_subsystem(sd_device *device, const char **ret) {
+int device_get_subsystem_bus(
+                sd_device *device,
+                const char *pseudo_subsystem,
+                const char **ret) {
+
         int r;
 
-        assert_return(device, -EINVAL);
+        assert(device);
+        assert(pseudo_subsystem);
 
-        r = device_in_subsystem(device, "drivers");
+        r = device_in_subsystem(device, pseudo_subsystem);
         if (r < 0)
                 return r;
         if (r == 0)
@@ -1365,6 +1371,12 @@ _public_ int sd_device_get_driver_subsystem(sd_device *device, const char **ret)
                 *ret = device->subsystem_bus;
 
         return 0;
+}
+
+_public_ int sd_device_get_driver_subsystem(sd_device *device, const char **ret) {
+        assert_return(device, -EINVAL);
+
+        return device_get_subsystem_bus(device, "drivers", ret);
 }
 
 _public_ int sd_device_get_devtype(sd_device *device, const char **ret) {
