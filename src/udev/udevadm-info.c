@@ -369,6 +369,9 @@ static int print_record(sd_device *device, const char *prefix) {
         if (sd_device_get_subsystem(device, &subsys) >= 0)
                 printf("%sU: %s%s%s\n", prefix, ansi_highlight_green(), subsys, ansi_normal());
 
+        if (sd_device_get_slot_subsystem(device, &str) >= 0)
+                printf("%sB: %s%s%s\n", prefix, ansi_highlight_green(), str, ansi_normal());
+
         if (sd_device_get_driver_subsystem(device, &str) >= 0)
                 printf("%sB: %s%s%s\n", prefix, ansi_highlight_green(), str, ansi_normal());
 
@@ -434,6 +437,12 @@ static int record_to_json(sd_device *device, sd_json_variant **ret) {
 
         if (sd_device_get_sysnum(device, &str) >= 0) {
                 r = sd_json_variant_set_field_string(&v, "SYSNUM", str);
+                if (r < 0)
+                        return r;
+        }
+
+        if (sd_device_get_slot_subsystem(device, &str) >= 0) {
+                r = sd_json_variant_set_field_string(&v, "SLOT_SUBSYSTEM", str);
                 if (r < 0)
                         return r;
         }

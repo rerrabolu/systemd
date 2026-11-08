@@ -1121,4 +1121,5 @@ global:
         sd_varlink_invoke_and_upgrade;
         sd_varlink_invoke_and_upgradeb;
         sd_varlink_wants_reply;
+        sd_device_get_slot_subsystem;
 } LIBSYSTEMD_262;

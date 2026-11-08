@@ -11,6 +11,7 @@
 
 /* List of pseudo-subsystems recognised by sd-device.
  *   "drivers" — driver entries under /sys/bus/<bus>/drivers/
+ *   "slots"   — slot entries under /sys/bus/<bus>/slots/
  *
  * Each entry must be a valid sysfs subsystem name. The
  * array is NULL-terminated for use with STRV_FOREACH.
@@ -32,7 +33,7 @@ struct sd_device {
 
         /* basic kernel properties */
         char *subsystem;
-        char *subsystem_bus; /* Set for pseudo-subsystems, currently just 'drivers'. */
+        char *subsystem_bus; /* Set for pseudo-subsystem devices. */
         char *driver;
         char *devtype;
 

@@ -381,7 +381,7 @@
             </row>
             <row>
               <entry><literal>B:</literal></entry>
-              <entry>Driver subsystem</entry>
+              <entry>Connected bus type of a slot or driver device</entry>
             </row>
             <row>
               <entry><literal>T:</literal></entry>

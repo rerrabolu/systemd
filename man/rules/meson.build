@@ -573,6 +573,7 @@ manpages = [
    'sd_device_get_driver',
    'sd_device_get_driver_subsystem',
    'sd_device_get_ifindex',
+   'sd_device_get_slot_subsystem',
    'sd_device_get_subsystem',
    'sd_device_get_sysname',
    'sd_device_get_sysnum'],
